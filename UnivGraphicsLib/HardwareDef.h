@@ -1,0 +1,1 @@
+#include	"UnivGraphicsHW_Defs.h"#ifndef _UNIV_GRAPHICS_H_	#include	"UnivGraphicsLib.h"#endif#define	_ENABLE_HERSHEY_FONTS_

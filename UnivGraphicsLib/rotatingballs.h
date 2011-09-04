@@ -1,0 +1,1 @@
+#ifdef __cplusplus	extern "C" {#endifvoid	RotateBalls(RECT *graphicsRect);#ifdef __cplusplus} // extern "C"#endif

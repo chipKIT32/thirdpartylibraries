@@ -1,0 +1,595 @@
+//*******************************************************************************
+//*	
+//*	MikroElektronikadrivers
+//*	
+//*	(C) by Mark Sproul
+//*	This code is derived from other works. Credit is given below
+//*	This is open source like the rest of the arduino source code
+//*
+//*	this code is derived from the ks0108.cpp Arduino library
+//*	pic32	Elapsed time=5632
+//*	avr	Elapsed time=2590
+//*******************************************************************************
+//*******************************************************************************
+//*	Detailed edit history
+//*******************************************************************************
+//*	Jan 28,	2010	<MLS> Started on UnivGraphicsLib
+//*	Jun 18,	2011	<MLS> Started MikroElektronika support
+//*******************************************************************************
+
+#include	<string.h>
+#include	<stdio.h>
+#include	<stdlib.h>
+
+
+
+#include	"HardwareSerial.h"
+
+#include	"UnivGraphicsHW_Defs.h"
+#include	"UnivGraphicsLib.h"
+#include	"UnivGraphicsHardware.h"	//*	this is the routines that the implementer provides
+
+
+#include	"Hardware_Nokia128.h"
+
+//*******************************************************************************
+#pragma mark -
+#pragma mark Noikia/Sparkfun private routines
+
+static void Nokia_LCDCommand(unsigned char data);
+static void Nokia_LCDData(unsigned char data);
+static void Nokia_LCDInit(void);
+static void Nokia_LCDClear(int color);
+static void Nokia_LCDPrintLogo(void);
+static void Nokia_LCDContrast(char setting);
+static void Nokia_LCDSetPixel(int color, unsigned char x, unsigned char y);
+
+
+//The spark logo array defines the SparkFun logo that is displayed during startup on the splash screen.  The array may
+//be changed to display a different image at startup or removed altogether.  The array is local to the LCD driver and
+//can not be used outside of this file.
+static const char logo_spark[1120] =	{0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x78,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0xe0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0xe0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0xf0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xfb,0x80,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xff,0x80,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x7f,0x80,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0c,0x3f,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x1c,0x3f,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3c,0x7f,0xc0,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3f,0xff,0x80,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3f,0xff,0x80,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3f,0xff,0x80,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3f,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3f,0xfe,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3f,0xfc,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3f,0xe0,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3c,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x38,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x30,0x0f,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x0e,0x20,0x1f,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x1e,0x00,0x3f,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x1e,0x00,0x3c,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x1e,0x00,0x3c,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x0f,0xe0,0x9f,0x01,0xfc,0x09,0x9e,0x1e,0x7f,0x70,0x73,0x9f,0x00,0x00,0x00,0x00,
+0x3f,0xf1,0xff,0x87,0xfe,0x3f,0xde,0x3d,0xff,0x78,0xf3,0xff,0x80,0x00,0x00,0x00,
+0x3c,0xf9,0xff,0xc7,0xdf,0x3f,0xde,0x79,0xff,0x78,0xf3,0xff,0xc0,0x00,0x00,0x00,
+0x78,0x79,0xc3,0xcf,0x0f,0x3f,0x1c,0xf0,0x3c,0x78,0xf3,0xe3,0xc0,0x00,0x00,0x00,
+0x7c,0x01,0xc1,0xe0,0x0f,0x3e,0x1f,0xe0,0x3c,0x78,0xf3,0xc3,0xc0,0x00,0x00,0x00,
+0x3f,0xc1,0x81,0xe0,0x3f,0x3c,0x1f,0xe0,0x3c,0x78,0xf3,0xc1,0xc0,0x00,0x00,0x00,
+0x1f,0xf1,0x81,0xe3,0xff,0x3c,0x1f,0xe0,0x3c,0x78,0xf3,0xc1,0xc0,0x00,0x00,0x00,
+0x07,0xf9,0x81,0xe7,0xef,0x3c,0x1f,0xf0,0x3c,0x78,0xf3,0xc1,0xc0,0x00,0x00,0x00,
+0x00,0xf9,0x81,0xef,0x07,0x3c,0x1e,0xf8,0x3c,0x78,0xf3,0xc1,0xc0,0x00,0x00,0x00,
+0x78,0x79,0xc1,0xef,0x0f,0x3c,0x1e,0x78,0x3c,0x78,0xf3,0xc1,0xc0,0x00,0x00,0x00,
+0x78,0x79,0xe3,0xcf,0x0f,0x3c,0x1e,0x3c,0x3c,0x7c,0xf3,0xc1,0xc0,0x00,0x00,0x00,
+0x3f,0xf9,0xff,0xcf,0xff,0x3c,0x1e,0x3e,0x3c,0x7f,0xf3,0xc1,0xcf,0x00,0x00,0x00,
+0x1f,0xf1,0xff,0x87,0xff,0x3c,0x1e,0x1e,0x3c,0x3f,0xf3,0xc1,0xc7,0x00,0x00,0x00,
+0x07,0xc1,0x9e,0x03,0xe0,0x00,0x00,0x02,0x00,0x0e,0x20,0x00,0x00,0x00,0x00,0x00,
+0x00,0x01,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x01,0x80,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x03,0x80,0x00,0x00,0x00,0xc0,0x00,0x00,0x18,0x00,0x00,0x08,0x08,0x00,0x00,
+0x00,0x01,0x87,0xc3,0x03,0xe0,0xe1,0xf0,0xf8,0x3e,0x33,0x08,0x3e,0x1e,0x00,0x00,
+0x00,0x01,0x86,0x03,0x03,0x01,0xb0,0xe0,0xdc,0x66,0x3b,0x08,0x66,0x32,0x00,0x00,
+0x00,0x00,0x87,0xc3,0x03,0xe1,0x80,0x40,0xd8,0x63,0x3b,0x08,0x60,0x3c,0x00,0x00,
+0x00,0x00,0x87,0x83,0x03,0xc1,0x80,0x40,0xf8,0x63,0x3f,0x08,0x60,0x0e,0x00,0x00,
+0x00,0x00,0x06,0x03,0x03,0x01,0xb0,0x40,0xd8,0x66,0x37,0x08,0x66,0x32,0x00,0x00,
+0x00,0x00,0x07,0xc3,0xe3,0xe0,0xe0,0x40,0xc8,0x3e,0x33,0x08,0x3e,0x3e,0x00,0x00,
+0x00,0x00,0x07,0xc3,0xe3,0xe0,0xe0,0x40,0x88,0x3c,0x33,0x08,0x3c,0x1e,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,};
+
+
+//************************************************************************
+static void	delay_us(int microSecs)
+{
+//	delayMicroseconds(microSecs);
+}
+
+//************************************************************************
+static void	delay_ms(int millisecs)
+{
+//	delay(millisecs);
+//	delayMicroseconds(millisecs * 1000);
+}
+
+//************************************************************************
+//Usage: LCDClear(black);
+//Inputs: char color: 8-bit color to be sent to the screen.
+//Outputs: None
+//Description: This function will clear the screen with "color" by writing the
+//				color to each location in the RAM of the LCD.
+//************************************************************************
+void Nokia_LCDClear(int color)
+{
+unsigned int i;
+
+	#ifdef EPSON
+		Nokia_LCDCommand(PASET);
+		Nokia_LCDData(0);
+		Nokia_LCDData(131);
+	
+		Nokia_LCDCommand(CASET);
+		Nokia_LCDData(0);
+		Nokia_LCDData(131);
+
+		Nokia_LCDCommand(RAMWR);
+	#endif
+	#ifdef	PHILLIPS
+		Nokia_LCDCommand(PASETP);
+		Nokia_LCDData(0);
+		Nokia_LCDData(131);
+	
+		Nokia_LCDCommand(CASETP);
+		Nokia_LCDData(0);
+		Nokia_LCDData(131);
+
+		Nokia_LCDCommand(RAMWRP);
+	#endif
+	
+	for (i=0; i < (131*131)/2; i++)
+	{
+		Nokia_LCDData((color >> 4) & 0x00FF);
+		Nokia_LCDData(((color & 0x0F) << 4) | (color >> 8));
+		Nokia_LCDData(color & 0x0FF);		// nop(EPSON)
+	}
+	
+//	x_offset = 0;
+//	y_offset = 0;
+}
+
+
+
+//************************************************************************
+//Usage: LCDCommand(RAMWR);
+//Inputs: char data - character command to be sent to the LCD
+//Outputs: None
+//************************************************************************
+static void Nokia_LCDCommand(unsigned char data)
+{
+char j;
+#ifdef _USE_ARDUINO_FOR_NOKIEA_
+	digitalWrite(CS_PIN, LOW);		// enable chip, p0.20 goes low
+	//delay_us(1);
+	digitalWrite(DIO_PIN, LOW);		// output low on data out (9th bit low = command), p0.19
+	//delay_us(1);
+
+	digitalWrite(SCK_PIN, LOW);		// send clock pulse
+	delay_us(1);
+	digitalWrite(SCK_PIN, HIGH);
+	//delay_us(1);
+
+	for (j = 0; j < 8; j++)
+	{
+		if ((data & 0x80) == 0x80)
+		{
+			digitalWrite(DIO_PIN, HIGH);
+		}
+		else
+		{
+			digitalWrite(DIO_PIN, LOW);
+		}
+		//delay_us(1);
+
+		digitalWrite(SCK_PIN, LOW);		// send clock pulse
+//?		delay_us(1);
+		digitalWrite(SCK_PIN, HIGH);
+
+		data <<= 1;
+	}
+
+	digitalWrite(CS_PIN, HIGH);	// disable
+#else
+	cbi(LCD_PORT_CS, CS);		// enable chip, p0.20 goes low
+	//delay_us(1);
+	cbi(LCD_PORT_DIO, DIO);		// output low on data out (9th bit low = command), p0.19
+	//delay_us(1);
+
+	cbi(LCD_PORT_SCK, SCK);		// send clock pulse
+	delay_us(1);
+	sbi(LCD_PORT_SCK, SCK);
+	//delay_us(1);
+
+	for (j = 0; j < 8; j++)
+	{
+		if ((data & 0x80) == 0x80)
+		{
+			sbi(LCD_PORT_DIO, DIO);
+		}
+		else
+		{
+			cbi(LCD_PORT_DIO, DIO);
+		}
+		//delay_us(1);
+
+		cbi(LCD_PORT_SCK, SCK);		// send clock pulse
+//?		delay_us(1);
+		sbi(LCD_PORT_SCK, SCK);
+
+		data <<= 1;
+	}
+
+	sbi(LCD_PORT_CS, CS);			// disable
+#endif
+}
+
+//************************************************************************
+//Usage: LCDData(RAMWR);
+//Inputs: char data - character data to be sent to the LCD
+//Outputs: None
+//************************************************************************
+static void Nokia_LCDData(unsigned char data)
+{
+char j;
+
+#ifdef _USE_ARDUINO_FOR_NOKIEA_
+	digitalWrite(CS_PIN, LOW);			// enable chip, p0.20 goes low
+	//delay_us(1);
+	digitalWrite(DIO_PIN, HIGH);		// output high on data out (9th bit high = data), p0.19
+	//delay_us(1);
+	
+	digitalWrite(SCK_PIN, LOW);			// send clock pulse
+//?	delay_us(1);
+	digitalWrite(SCK_PIN, HIGH);			// send clock pulse
+	//delay_us(1);
+
+	for (j = 0; j < 8; j++)
+	{
+		if ((data & 0x80) == 0x80)
+		{
+			digitalWrite(DIO_PIN, HIGH);
+		}
+		else
+		{
+			digitalWrite(DIO_PIN, LOW);
+		}
+		//delay_us(1);
+		
+		digitalWrite(SCK_PIN, LOW);		// send clock pulse
+//?		delay_us(1);
+		digitalWrite(SCK_PIN, HIGH);
+
+		data <<= 1;
+	}
+	digitalWrite(CS_PIN, HIGH);	// disable
+
+#else
+	cbi(LCD_PORT_CS, CS);			// enable chip, p0.20 goes low
+	//delay_us(1);
+	sbi(LCD_PORT_DIO, DIO);			// output high on data out (9th bit high = data), p0.19
+	//delay_us(1);
+	
+	cbi(LCD_PORT_SCK, SCK);			// send clock pulse
+//?	delay_us(1);
+	sbi(LCD_PORT_SCK, SCK);			// send clock pulse
+	//delay_us(1);
+
+	for (j = 0; j < 8; j++)
+	{
+		if ((data & 0x80) == 0x80) sbi(LCD_PORT_DIO, DIO);
+		else cbi(LCD_PORT_DIO, DIO);
+		//delay_us(1);
+		
+		cbi(LCD_PORT_SCK, SCK);		// send clock pulse
+//?		delay_us(1);
+		sbi(LCD_PORT_SCK, SCK);
+
+		data <<= 1;
+	}
+
+	LCD_PORT_CS	|=	(1<<CS);		// disable
+#endif
+}
+
+//************************************************************************
+//Usage: Nokia_LCDInit();
+//Inputs: None
+//Outputs: None
+//Description:  Initializes the LCD regardless of if the controlller is an EPSON or PHILLIPS.
+//************************************************************************
+static void Nokia_LCDInit(void)
+{
+	//*	setup the switches
+
+	pinMode(kSwitch1_PIN, INPUT);
+	pinMode(kSwitch2_PIN, INPUT);
+	pinMode(kSwitch3_PIN, INPUT);
+
+	//*	set the pull up resisters
+	digitalWrite(kSwitch1_PIN, HIGH);
+	digitalWrite(kSwitch2_PIN, HIGH);
+	digitalWrite(kSwitch3_PIN, HIGH);
+
+	pinMode(CS_PIN,			OUTPUT);
+	pinMode(DIO_PIN,		OUTPUT);
+	pinMode(SCK_PIN,		OUTPUT);
+	pinMode(LCD_RES_PIN,	OUTPUT);
+
+	delay_ms(200);
+							
+#ifdef _USE_ARDUINO_FOR_NOKIEA_
+
+
+	digitalWrite(SCK_PIN, LOW);		//output_low (SPI_CLK);//output_low (SPI_DO);
+	digitalWrite(DIO_PIN, LOW);
+	delay_us(10);
+	digitalWrite(CS_PIN, HIGH);			//output_high (LCD_CS);
+	delay_us(10);
+	digitalWrite(LCD_RES_PIN, LOW);		//output_low (LCD_RESET);
+	delay_ms(200);
+	digitalWrite(LCD_RES_PIN, HIGH);		//output_high (LCD_RESET);
+	delay_ms(200);
+	digitalWrite(SCK_PIN, HIGH);
+	digitalWrite(DIO_PIN, HIGH);
+	delay_us(10);
+
+#else
+	cbi(LCD_PORT_SCK, SCK);			//output_low (SPI_CLK);//output_low (SPI_DO);
+	cbi(LCD_PORT_DIO, DIO);
+	delay_us(10);
+	sbi(LCD_PORT_CS, CS);			//output_high (LCD_CS);
+	delay_us(10);
+	cbi(LCD_PORT_RES, LCD_RES);		//output_low (LCD_RESET);
+	delay_ms(200);
+	sbi(LCD_PORT_RES, LCD_RES);		//output_high (LCD_RESET);
+	delay_ms(200);
+	sbi(LCD_PORT_SCK, SCK);
+	sbi(LCD_PORT_DIO, DIO);
+	delay_us(10);
+#endif
+	
+	Nokia_LCDCommand(DISCTL);		// display control(EPSON)
+	Nokia_LCDData(0x0C);			// 12 = 1100 - CL dividing ratio [don't divide] switching period 8H (default)
+	Nokia_LCDData(0x20);	
+	//Nokia_LCDData(0x02);
+	Nokia_LCDData(0x00);
+	
+	Nokia_LCDData(0x01);
+	
+	Nokia_LCDCommand(COMSCN);		// common scanning direction(EPSON)
+	Nokia_LCDData(0x01);
+	
+	Nokia_LCDCommand(OSCON);		// internal oscialltor ON(EPSON)
+	
+	Nokia_LCDCommand(SLPOUT);		// sleep out(EPSON)
+	Nokia_LCDCommand(SLEEPOUT);	//sleep out(PHILLIPS)
+	
+	Nokia_LCDCommand(PWRCTR);		// power ctrl(EPSON)
+	Nokia_LCDData(0x0F);			//everything on, no external reference resistors
+	Nokia_LCDCommand(BSTRON);		//Booset On(PHILLIPS)
+	
+	Nokia_LCDCommand(DISINV);		// invert display mode(EPSON)
+	Nokia_LCDCommand(INVON);		// invert display mode(PHILLIPS)
+	
+	Nokia_LCDCommand(DATCTL);		// data control(EPSON)
+	Nokia_LCDData(0x03);			// correct for normal sin7
+	Nokia_LCDData(0x00);			// normal RGB arrangement
+	//Nokia_LCDData(0x01);		// 8-bit Grayscale
+	Nokia_LCDData(0x02);			// 16-bit Grayscale Type A
+	
+	Nokia_LCDCommand(MADCTL);		//Memory Access Control(PHILLIPS)
+	Nokia_LCDData(0xC8);
+	
+	Nokia_LCDCommand(COLMOD);		// Set Color Mode(PHILLIPS)
+	Nokia_LCDData(0x02);	
+	
+	Nokia_LCDCommand(VOLCTR);		// electronic volume, this is the contrast/brightness(EPSON)
+	//Nokia_LCDData(0x18);		// volume (contrast) setting - fine tuning, original
+	Nokia_LCDData(0x24);			// volume (contrast) setting - fine tuning, original
+	Nokia_LCDData(0x03);			// internal resistor ratio - coarse adjustment
+	Nokia_LCDCommand(SETCON);		// Set Contrast(PHILLIPS)
+	Nokia_LCDData(0x30);	
+	
+	Nokia_LCDCommand(NOP);		// nop(EPSON)
+	Nokia_LCDCommand(NOPP);		// nop(PHILLIPS)
+	
+	delay_ms(200);
+
+	Nokia_LCDCommand(DISON);		// display on(EPSON)
+	Nokia_LCDCommand(DISPON);		// display on(PHILLIPS)
+}
+
+
+
+//************************************************************************
+//Usage: LCDSetPixel(white, 0, 0);
+//Inputs: unsigned char color - desired color of the pixel
+//			unsigned char x - Page address of pixel to be colored
+//			unsigned char y - column address of pixel to be colored
+//Outputs: None
+//Description: Sets the starting page(row) and column (x & y) coordinates in ram,
+//				then writes the colour to display memory.	The ending x & y are left
+//				maxed out so one can continue sending colour data bytes to the 'open'
+//				RAMWR command to fill further memory.	issuing any red command
+//				finishes RAMWR.
+//**NOTE** Because this function is static, it is essentially a "private" function
+//		and can only be used within this file!
+//*	Apr  3,	2010	<MLS> Made LCDSetPixel public
+//************************************************************************
+static void Nokia_LCDSetPixel(int color, unsigned char x, unsigned char y)
+{
+int	myYYvalue;
+
+//*	Apr  3,	2010	<MLS> This is to make it "RIGHT" side up
+	
+	myYYvalue	=	127 - y;
+
+	#ifdef EPSON
+		Nokia_LCDCommand(PASET);	// page start/end ram
+		Nokia_LCDData(x);
+		Nokia_LCDData(ENDPAGE);
+	
+		Nokia_LCDCommand(CASET);	// column start/end ram
+		Nokia_LCDData(myYYvalue);
+		Nokia_LCDData(ENDCOL);
+	
+		Nokia_LCDCommand(RAMWR);	// write
+		Nokia_LCDData((color>>4)&0x00FF);
+		Nokia_LCDData(((color&0x0F)<<4)|(color>>8));
+		Nokia_LCDData(color&0x0FF);		// nop(EPSON)		
+		//Nokia_LCDData(color);
+		//Nokia_LCDData(NOP);
+		//Nokia_LCDData(NOP);
+	#endif
+	#ifdef	PHILLIPS
+		Nokia_LCDCommand(PASETP);	// page start/end ram
+		Nokia_LCDData(x);
+		Nokia_LCDData(ENDPAGE);
+	
+		Nokia_LCDCommand(CASETP);	// column start/end ram
+		Nokia_LCDData(myYYvalue);
+		Nokia_LCDData(ENDCOL);
+	
+		Nokia_LCDCommand(RAMWRP);	// write
+		
+		Nokia_LCDData((unsigned char)((color>>4)&0x00FF));
+		Nokia_LCDData((unsigned char)(((color&0x0F)<<4)|0x00));
+	#endif
+
+}
+
+
+//************************************************************************
+//Usage: LCDPrintLogo();
+//Inputs: None
+//Outputs: None
+//Description: Prints the logo_spark array to the LCD.
+//************************************************************************
+static void Nokia_LCDPrintLogo(void)
+{
+	int x = 4, y = 25, logo_ix = 0, z;
+	char logo;
+	
+	for (logo_ix = 0; logo_ix < 1120; logo_ix++)
+	{
+		logo = logo_spark[logo_ix];
+		for (z = 0; z < 8; z++)
+		{
+			if ((logo & 0x80) == 0x80)
+			{
+			//	Nokia_LCDSetPixel(RED, y, x);
+				Nokia_LCDSetPixel(RED, x, y);
+			}
+			x++;
+			if (x == 132)
+			{
+				x = 4;
+				y++;
+			}
+			
+			logo <<= 1;
+		}
+	}
+}
+
+#pragma mark -
+#pragma mark Graphics Hardware Routines
+
+
+//*******************************************************************************
+//*	returns TRUE if succesfull
+boolean	GrahicsHW_CheckIfPresent(void)
+{
+	return(true);
+}
+
+//*******************************************************************************
+boolean	GrahicsHW_Init(void)
+{
+#ifdef _DEBUG_VIA_SERIAL_
+	Serial.println("GrahicsHW_Init");
+	#if defined(__AVR_ATmega1280__)
+		Serial.println("__AVR_ATmega1280__");
+	#endif
+#endif
+	Nokia_LCDInit();
+	Nokia_LCDPrintLogo();
+	
+	gWidth	=	128;
+	gHeight	=	128;
+	return(true);
+}
+
+//*******************************************************************************
+void	GrahicsHW_EraseScreen(void)
+{
+	Nokia_LCDClear(BLACK);
+}
+
+
+//*******************************************************************************
+void	GrahicsHW_Reset(void)
+{
+}
+
+//*******************************************************************************
+void	GrahicsHW_SetPixelRGB(short xLoc, short yLoc, RGBColor *theColor)
+{
+int color12bit;
+int	rgbRed, rgbGreen, rgbBlue;
+
+
+	color12bit	=	(theColor->red << 4)	& 0x0f00;
+	color12bit	+=	(theColor->green)		& 0x0f0;
+	color12bit	+=	(theColor->blue >> 4)	& 0x0f;
+
+	Nokia_LCDSetPixel(color12bit, xLoc, yLoc);
+
+}
+
+//*******************************************************************************
+void	GrahicsHW_SetPixelRGB16bit(short xLoc, short yLoc, unsigned short the16bitColor)
+{
+	Nokia_LCDSetPixel(the16bitColor, xLoc, yLoc);
+}
+
+
+//*******************************************************************************
+void	GrahicsHW_SetPixel(short xLoc, short yLoc, unsigned char theColorByte)
+{
+
+	Nokia_LCDSetPixel(theColorByte, xLoc, yLoc);
+}
+
+
+
+//*******************************************************************************
+short	GrahicsHW_GetWidth(void)
+{
+	return(gWidth);
+}
+
+//*******************************************************************************
+short	GrahicsHW_GetHeight(void)
+{
+	return(gHeight);
+}
+
+
