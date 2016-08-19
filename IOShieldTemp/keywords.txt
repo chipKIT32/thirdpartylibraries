@@ -1,0 +1,48 @@
+#######################################
+# Syntax Coloring Map For IOShieldTemp
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+config	KEYWORD2
+setResolution	KEYWORD2
+getTemp	KEYWORD2
+setTempLimit	KEYWORD2
+setTempHyst	KEYWORD2
+convCtoF	KEYWORD2
+convFtoC	KEYWORD2
+
+#######################################
+# Instances (KEYWORD2)
+#######################################
+
+IOShieldTemp	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+IOSHIELDTEMP_ONESHOT	LITERAL1
+IOSHIELDTEMP_RES9	LITERAL1
+IOSHIELDTEMP_RES10	LITERAL1
+IOSHIELDTEMP_RES11	LITERAL1
+IOSHIELDTEMP_RES12	LITERAL1
+IOSHIELDTEMP_FAULT1	LITERAL1
+IOSHIELDTEMP_FAULT2	LITERAL1
+IOSHIELDTEMP_FAULT4	LITERAL1
+IOSHIELDTEMP_FAULT6	LITERAL1
+IOSHIELDTEMP_ALERTLOW	LITERAL1
+IOSHIELDTEMP_ALERTHIGH	LITERAL1
+IOSHIELDTEMP_CMPMODE	LITERAL1
+IOSHIELDTEMP_INTMODE	LITERAL1
+IOSHIELDTEMP_SHUTDOWN	LITERAL1
+IOSHIELDTEMP_STARTUP	LITERAL1
+IOSHIELDTEMP_CONF_DEFAULT	LITERAL1
+IOSHIELDTEMP_MAX	LITERAL1
+IOSHIELDTEMP_MIN	LITERAL1
